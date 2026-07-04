@@ -7,6 +7,10 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss()],
+  // Vite pre-bundling breaks the import.meta.url-relative .wasm path of the om-file reader
+  optimizeDeps: {
+    exclude: ['@openmeteo/weather-map-layer'],
+  },
   test: {
     include: ['tests/**/*.test.ts'],
   },
