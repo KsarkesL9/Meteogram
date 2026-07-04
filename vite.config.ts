@@ -9,7 +9,5 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   test: {
     include: ['tests/**/*.test.ts'],
-    // No lib modules exist yet; removed together with the first test in stage 2
-    passWithNoTests: true,
   },
 });
