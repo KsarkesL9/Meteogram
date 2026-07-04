@@ -1,13 +1,7 @@
+import { MODEL_LABELS } from './modelDisplay';
 import { MODEL_IDS } from '../types/forecast';
 import type { ModelId } from '../types/forecast';
 import type { MapLayerKind } from '../lib/mapLayers';
-
-const MODEL_LABELS: Record<ModelId, string> = {
-  gfs: 'GFS',
-  ecmwf: 'ECMWF',
-  icon: 'ICON',
-  hrrr: 'HRRR',
-};
 
 const LAYER_KINDS: MapLayerKind[] = ['temperature', 'pressure', 'wind'];
 

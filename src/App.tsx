@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Dashboard } from './components/Dashboard';
 import { LayerControl } from './components/LayerControl';
 import { MapPanel } from './components/MapPanel';
 import { useGeolocation } from './hooks/useGeolocation';
@@ -48,8 +49,8 @@ export function App() {
             </div>
           )}
         </section>
-        <aside className="flex w-2/5 items-center justify-center border-l border-line bg-panel text-ink-muted">
-          Panel wykresów (w przygotowaniu)
+        <aside className="w-2/5 border-l border-line bg-panel">
+          <Dashboard location={selectedLocation} />
         </aside>
       </main>
     </div>
