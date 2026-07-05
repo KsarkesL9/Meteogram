@@ -18,7 +18,7 @@ interface CachedForecast {
   unavailableModels: ModelId[];
 }
 
-interface ForecastQuery {
+export interface ForecastQuery {
   forecast: LocationForecast | null;
   unavailableModels: ModelId[];
   // FR-14: the slider will own the time index; until then this is the nearest-to-now step

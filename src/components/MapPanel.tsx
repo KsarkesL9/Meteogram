@@ -2,9 +2,18 @@ import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import { omProtocol } from '@openmeteo/weather-map-layer';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { buildWeatherLayerSources } from '../lib/mapLayers';
-import type { MapLayerKind, WeatherLayerSources } from '../lib/mapLayers';
-import type { GeoCoordinates, ModelId } from '../types/forecast';
+import {
+  buildWeatherLayerSources,
+  findClosestValidTime,
+  weatherLayerTilePath,
+} from '../lib/mapLayers';
+import type {
+  MapLayerKind,
+  WeatherLayerFrame,
+  WeatherLayerSources,
+} from '../lib/mapLayers';
+import { useWeatherLayerSchedule } from '../hooks/useWeatherLayerSchedule';
+import type { GeoCoordinates, ModelId, UnixSeconds } from '../types/forecast';
 
 maplibregl.addProtocol('om', omProtocol);
 
@@ -19,6 +28,8 @@ interface MapPanelProps {
   selectedLocation: GeoCoordinates | null;
   layerModel: ModelId;
   layerKind: MapLayerKind;
+  // FR-14: the slider drives which om file the weather layer renders
+  activeTime: UnixSeconds | null;
   onLocationSelected: (coordinates: GeoCoordinates) => void;
 }
 
@@ -27,8 +38,12 @@ export function MapPanel({
   selectedLocation,
   layerModel,
   layerKind,
+  activeTime,
   onLocationSelected,
 }: MapPanelProps) {
+  const schedule = useWeatherLayerSchedule(
+    weatherLayerTilePath(layerModel, layerKind),
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
@@ -90,7 +105,14 @@ export function MapPanel({
     if (map === null) {
       return;
     }
-    const sources = buildWeatherLayerSources(layerModel, layerKind);
+    let frame: WeatherLayerFrame | undefined;
+    if (schedule !== null && activeTime !== null) {
+      const validTime = findClosestValidTime(schedule.validTimes, activeTime);
+      if (validTime !== null) {
+        frame = { referenceTime: schedule.referenceTime, validTime };
+      }
+    }
+    const sources = buildWeatherLayerSources(layerModel, layerKind, frame);
     const apply = () => {
       replaceWeatherLayers(map, sources);
     };
@@ -102,7 +124,7 @@ export function MapPanel({
     return () => {
       map.off('load', apply);
     };
-  }, [layerModel, layerKind]);
+  }, [layerModel, layerKind, schedule, activeTime]);
 
   return <div ref={containerRef} className="h-full w-full" />;
 }

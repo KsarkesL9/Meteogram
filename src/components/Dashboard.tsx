@@ -3,7 +3,7 @@ import { ForecastChart } from './ForecastChart';
 import { ModelLegend } from './ModelLegend';
 import { ParameterTabs } from './ParameterTabs';
 import { ReadoutBar } from './ReadoutBar';
-import { useForecast } from '../hooks/useForecast';
+import type { ForecastQuery } from '../hooks/useForecast';
 import { listCoveredModels } from '../lib/modelCoverage';
 import { PARAMETER_GROUPS } from '../lib/parameterGroups';
 import type { ParameterGroupId } from '../lib/parameterGroups';
@@ -12,17 +12,16 @@ import type { GeoCoordinates, ModelId } from '../types/forecast';
 
 interface DashboardProps {
   location: GeoCoordinates | null;
+  query: ForecastQuery;
+  activeTimeIndex: number;
 }
 
-export function Dashboard({ location }: DashboardProps) {
-  const {
-    forecast,
-    unavailableModels,
-    currentTimeIndex,
-    isLoading,
-    error,
-    retry,
-  } = useForecast(location);
+export function Dashboard({
+  location,
+  query,
+  activeTimeIndex,
+}: DashboardProps) {
+  const { forecast, unavailableModels, isLoading, error, retry } = query;
   const [activeGroupId, setActiveGroupId] =
     useState<ParameterGroupId>('temperature');
   const [excludedModels, setExcludedModels] = useState<ModelId[]>([]);
@@ -102,7 +101,7 @@ export function Dashboard({ location }: DashboardProps) {
             group={activeGroup}
             excludedModels={excludedModels}
             unitPreferences={unitPreferences}
-            timeIndex={currentTimeIndex}
+            timeIndex={activeTimeIndex}
           />
           <div className="min-h-0 grow bg-panel">
             <ForecastChart
@@ -110,6 +109,7 @@ export function Dashboard({ location }: DashboardProps) {
               group={activeGroup}
               excludedModels={excludedModels}
               unitPreferences={unitPreferences}
+              activeTimeIndex={activeTimeIndex}
             />
           </div>
         </>

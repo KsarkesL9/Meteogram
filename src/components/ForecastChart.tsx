@@ -22,6 +22,7 @@ interface ForecastChartProps {
   group: ParameterGroup;
   excludedModels: ModelId[];
   unitPreferences: UnitPreferences;
+  activeTimeIndex: number;
 }
 
 export function ForecastChart({
@@ -29,6 +30,7 @@ export function ForecastChart({
   group,
   excludedModels,
   unitPreferences,
+  activeTimeIndex,
 }: ForecastChartProps) {
   const localTimes = forecast.timestamps.map((timestamp) =>
     toLocationIso(timestamp, forecast.utcOffsetSeconds),
@@ -86,6 +88,18 @@ export function ForecastChart({
       gridcolor: '#dde2e7',
       zeroline: false,
     },
+    // FR-14: the cursor tracker follows the shared time slider
+    shapes: [
+      {
+        type: 'line',
+        x0: localTimes[activeTimeIndex],
+        x1: localTimes[activeTimeIndex],
+        yref: 'paper',
+        y0: 0,
+        y1: 1,
+        line: { color: '#2c3e50', width: 1 },
+      },
+    ],
   };
 
   // FR-17: default Plotly toolbar (zoom, pan, PNG export) stays untouched
