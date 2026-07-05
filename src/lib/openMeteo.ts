@@ -1,3 +1,4 @@
+import { formatRunParam } from './modelRuns';
 import { FORECAST_PARAMETERS } from '../types/forecast';
 import type {
   ForecastParameter,
@@ -61,6 +62,29 @@ export function buildForecastUrl(
   return `${FORECAST_API_URL}?${query.toString()}`;
 }
 
+export const SINGLE_RUNS_API_URL =
+  'https://single-runs-api.open-meteo.com/v1/forecast';
+
+// FR-07: one model per request; such responses carry keys without the model suffix
+export function buildSingleRunUrl(
+  coordinates: GeoCoordinates,
+  model: ModelId,
+  runTimestamp: UnixSeconds,
+): string {
+  const query = new URLSearchParams({
+    latitude: coordinates.latitude.toString(),
+    longitude: coordinates.longitude.toString(),
+    hourly: Object.values(HOURLY_VARIABLES).join(','),
+    models: MODEL_API_CODES[model],
+    run: formatRunParam(runTimestamp),
+    forecast_days: '16',
+    timeformat: 'unixtime',
+    timezone: 'auto',
+    wind_speed_unit: 'ms',
+  });
+  return `${SINGLE_RUNS_API_URL}?${query.toString()}`;
+}
+
 export function parseForecastResponse(
   response: OpenMeteoForecastResponse,
   requestedModels: readonly ModelId[],
@@ -107,7 +131,10 @@ function readModelForecast(
   const parameters = {} as Record<ForecastParameter, ForecastSeries>;
   let hasAnySeries = false;
   for (const parameter of FORECAST_PARAMETERS) {
-    const series = hourly[`${HOURLY_VARIABLES[parameter]}_${apiCode}`];
+    // Single-model responses (Single Runs API) carry keys without the model suffix
+    const series =
+      hourly[`${HOURLY_VARIABLES[parameter]}_${apiCode}`] ??
+      hourly[HOURLY_VARIABLES[parameter]];
     if (series === undefined) {
       parameters[parameter] = new Array<null>(stepCount).fill(null);
       continue;

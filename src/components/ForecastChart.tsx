@@ -59,6 +59,7 @@ interface ForecastChartProps {
   unitPreferences: UnitPreferences;
   activeTimeIndex: number;
   displayOffsetSeconds: number;
+  archivedRun: { model: ModelId; forecast: LocationForecast } | null;
 }
 
 export function ForecastChart({
@@ -68,6 +69,7 @@ export function ForecastChart({
   unitPreferences,
   activeTimeIndex,
   displayOffsetSeconds,
+  archivedRun,
 }: ForecastChartProps) {
   const localTimes = forecast.timestamps.map((timestamp) =>
     toLocationIso(timestamp, displayOffsetSeconds),
@@ -107,6 +109,30 @@ export function ForecastChart({
       line: { color: MULTI_MODEL_AVERAGE_COLOR, width: 2.5, dash: 'dash' },
     });
   });
+
+  // FR-07: a single archived run overlays the charts as a thinner, faded line
+  if (archivedRun !== null) {
+    const archivedTimes = archivedRun.forecast.timestamps.map((timestamp) =>
+      toLocationIso(timestamp, displayOffsetSeconds),
+    );
+    for (const parameter of group.parameters) {
+      traces.push({
+        x: archivedTimes,
+        y: convertForecastSeries(
+          parameter,
+          archivedRun.forecast.models[archivedRun.model]?.parameters[
+            parameter
+          ] ?? [],
+          unitPreferences,
+        ),
+        type: 'scatter',
+        mode: 'lines',
+        opacity: 0.45,
+        name: `${MODEL_LABELS[archivedRun.model]} (run): ${PARAMETER_LABELS[parameter]}`,
+        line: { color: MODEL_COLORS[archivedRun.model], width: 1 },
+      });
+    }
+  }
 
   // FR-15: the wind tab carries a direction-arrow row above the time axis
   const isWindGroup = group.id === 'wind';

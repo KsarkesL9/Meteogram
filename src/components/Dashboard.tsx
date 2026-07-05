@@ -3,6 +3,9 @@ import { ForecastChart } from './ForecastChart';
 import { ModelLegend } from './ModelLegend';
 import { ParameterTabs } from './ParameterTabs';
 import { ReadoutBar } from './ReadoutBar';
+import { RunPicker } from './RunPicker';
+import { useArchivedRun } from '../hooks/useArchivedRun';
+import type { ArchivedRunSelection } from '../hooks/useArchivedRun';
 import type { ForecastQuery } from '../hooks/useForecast';
 import { displayOffsetSeconds } from '../lib/localTime';
 import type { TimeDisplay } from '../lib/localTime';
@@ -31,6 +34,22 @@ export function Dashboard({
   const [activeGroupId, setActiveGroupId] =
     useState<ParameterGroupId>('temperature');
   const [excludedModels, setExcludedModels] = useState<ModelId[]>([]);
+
+  // FR-07: selecting a new location resets the archived-run overlay to "latest";
+  // the snapshot comparison makes the reset derived state, not an effect
+  const [archivedSelection, setArchivedSelection] = useState<{
+    selection: ArchivedRunSelection;
+    forLocation: GeoCoordinates;
+  } | null>(null);
+  const activeSelection =
+    archivedSelection !== null && archivedSelection.forLocation === location
+      ? archivedSelection.selection
+      : null;
+  const {
+    archivedRun,
+    isLoading: isRunLoading,
+    hasFailed: hasRunFailed,
+  } = useArchivedRun(location, activeSelection);
 
   // FR-08: models outside their coverage are absent from the legend, not greyed out
   const coveredModels = useMemo(
@@ -68,9 +87,24 @@ export function Dashboard({
           excludedModels={excludedModels}
           onToggleModel={toggleModel}
         />
-        {isLoading && (
-          <span className="text-sm text-ink-muted">Ładowanie…</span>
-        )}
+        <div className="flex items-center gap-2">
+          {isLoading && (
+            <span className="text-sm text-ink-muted">Ładowanie…</span>
+          )}
+          <RunPicker
+            models={coveredModels}
+            selection={activeSelection}
+            isLoading={isRunLoading}
+            hasFailed={hasRunFailed}
+            onSelect={(selection) => {
+              setArchivedSelection(
+                selection === null
+                  ? null
+                  : { selection, forLocation: location },
+              );
+            }}
+          />
+        </div>
       </div>
       {error !== null && (
         <div
@@ -123,6 +157,14 @@ export function Dashboard({
                 forecast.utcOffsetSeconds,
                 timeDisplay,
               )}
+              archivedRun={
+                archivedRun === null
+                  ? null
+                  : {
+                      model: archivedRun.selection.model,
+                      forecast: archivedRun.forecast,
+                    }
+              }
             />
           </div>
         </>
