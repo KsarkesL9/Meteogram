@@ -1,6 +1,7 @@
 import Plot from 'react-plotly.js';
 import type { Annotations, Data, Layout } from 'plotly.js';
 import { computeMultiModelAverage, countSeriesWithData } from '../lib/average';
+import { findLastStepWithData } from '../lib/forecastHorizon';
 import { toLocationIso } from '../lib/localTime';
 import { computeMeanWindDirection } from '../lib/windDirection';
 import { PARAMETER_LABELS } from '../lib/parameterGroups';
@@ -82,6 +83,7 @@ export function ForecastChart({
   );
 
   const traces: Data[] = [];
+  const drawnSeries: (number | null)[][] = [];
   group.parameters.forEach((parameter, parameterIndex) => {
     const dash = PARAMETER_DASHES[parameterIndex % PARAMETER_DASHES.length];
     const includedSeries = includedModels.map((model) =>
@@ -91,6 +93,7 @@ export function ForecastChart({
         unitPreferences,
       ),
     );
+    drawnSeries.push(...includedSeries);
     includedModels.forEach((model, modelIndex) => {
       traces.push({
         x: localTimes,
@@ -139,6 +142,36 @@ export function ForecastChart({
     }
   }
 
+  // The axis ends where drawn data ends: shorter models are null-padded to 16 days
+  const lastStep = findLastStepWithData(drawnSeries);
+  let rangeStart = localTimes[0];
+  let rangeEnd =
+    lastStep >= 0 ? localTimes[lastStep] : localTimes[localTimes.length - 1];
+  if (archivedRun !== null) {
+    const archivedTimes = archivedRun.forecast.timestamps;
+    const archivedStart = toLocationIso(archivedTimes[0], displayOffsetSeconds);
+    const archivedLast = findLastStepWithData(
+      group.parameters.map(
+        (parameter) =>
+          archivedRun.forecast.models[archivedRun.model]?.parameters[
+            parameter
+          ] ?? [],
+      ),
+    );
+    if (archivedStart < rangeStart) {
+      rangeStart = archivedStart;
+    }
+    if (archivedLast >= 0) {
+      const archivedEnd = toLocationIso(
+        archivedTimes[archivedLast],
+        displayOffsetSeconds,
+      );
+      if (archivedEnd > rangeEnd) {
+        rangeEnd = archivedEnd;
+      }
+    }
+  }
+
   // FR-15: the wind tab carries a direction-arrow row above the time axis
   const isWindGroup = group.id === 'wind';
   const layout: Partial<Layout> = {
@@ -155,7 +188,11 @@ export function ForecastChart({
       size: 12,
       color: '#333333',
     },
-    xaxis: { type: 'date', gridcolor: '#dde2e7' },
+    xaxis: {
+      type: 'date',
+      gridcolor: '#dde2e7',
+      range: [rangeStart, rangeEnd],
+    },
     yaxis: {
       title: { text: parameterUnitLabel(group.parameters[0], unitPreferences) },
       gridcolor: '#dde2e7',
@@ -175,11 +212,16 @@ export function ForecastChart({
     ],
   };
 
-  // FR-17: default Plotly toolbar (zoom, pan, PNG export) stays untouched
+  // FR-17: pan, zoom in/out, autoscale and PNG export stay active; the box-zoom
+  // button, axis reset and the Plotly logo are trimmed from the toolbar
   return (
     <Plot
       data={traces}
       layout={layout}
+      config={{
+        displaylogo: false,
+        modeBarButtonsToRemove: ['zoom2d', 'resetScale2d'],
+      }}
       useResizeHandler
       style={{ width: '100%', height: '100%' }}
     />

@@ -166,7 +166,7 @@ export function Dashboard({
             timeSuffix={timeDisplay === 'utc' ? ' UTC' : ''}
             showAverage={showAverage}
           />
-          <div className="min-h-0 grow bg-panel">
+          <div className="min-h-0 grow overflow-hidden bg-panel">
             <ForecastChart
               forecast={forecast}
               group={activeGroup}
