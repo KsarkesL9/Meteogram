@@ -22,6 +22,7 @@ const WEATHER_RASTER_SOURCE = 'weather-raster';
 const WEATHER_RASTER_LAYER = 'weather-raster-layer';
 const WEATHER_VECTOR_SOURCE = 'weather-vector';
 const WEATHER_VECTOR_LAYER = 'weather-vector-layer';
+const LAYER_DEBOUNCE_MS = 250;
 
 interface MapPanelProps {
   center: GeoCoordinates;
@@ -49,6 +50,7 @@ export function MapPanel({
   const markerRef = useRef<maplibregl.Marker | null>(null);
   const initialCenterRef = useRef(center);
   const onLocationSelectedRef = useRef(onLocationSelected);
+  const generationRef = useRef(0);
   const [isMapReady, setIsMapReady] = useState(false);
 
   useEffect(() => {
@@ -109,24 +111,32 @@ export function MapPanel({
     if (map === null) {
       return;
     }
-    let frame: WeatherLayerFrame | undefined;
-    if (schedule !== null && activeTime !== null) {
-      const validTime = findClosestValidTime(schedule.validTimes, activeTime);
-      if (validTime !== null) {
-        frame = { referenceTime: schedule.referenceTime, validTime };
+    let onLoad: (() => void) | null = null;
+    // Dragging the slider fires per hour step; only the settled hour loads tiles
+    const debounceTimer = setTimeout(() => {
+      let frame: WeatherLayerFrame | undefined;
+      if (schedule !== null && activeTime !== null) {
+        const validTime = findClosestValidTime(schedule.validTimes, activeTime);
+        if (validTime !== null) {
+          frame = { referenceTime: schedule.referenceTime, validTime };
+        }
       }
-    }
-    const sources = buildWeatherLayerSources(layerModel, layerKind, frame);
-    const apply = () => {
-      replaceWeatherLayers(map, sources);
-    };
-    if (map.isStyleLoaded()) {
-      apply();
-      return;
-    }
-    map.on('load', apply);
+      const sources = buildWeatherLayerSources(layerModel, layerKind, frame);
+      const apply = () => {
+        swapWeatherLayers(map, sources, generationRef);
+      };
+      if (map.isStyleLoaded()) {
+        apply();
+        return;
+      }
+      onLoad = apply;
+      map.on('load', apply);
+    }, LAYER_DEBOUNCE_MS);
     return () => {
-      map.off('load', apply);
+      clearTimeout(debounceTimer);
+      if (onLoad !== null) {
+        map.off('load', onLoad);
+      }
     };
   }, [layerModel, layerKind, schedule, activeTime]);
 
@@ -144,20 +154,14 @@ export function MapPanel({
   );
 }
 
-function replaceWeatherLayers(
+// The previous layer generation stays on screen until the new tiles have
+// rendered, so switching hours cross-fades instead of flashing an empty map
+function swapWeatherLayers(
   map: maplibregl.Map,
   sources: WeatherLayerSources,
+  generationRef: { current: number },
 ): void {
-  for (const layerId of [WEATHER_RASTER_LAYER, WEATHER_VECTOR_LAYER]) {
-    if (map.getLayer(layerId) !== undefined) {
-      map.removeLayer(layerId);
-    }
-  }
-  for (const sourceId of [WEATHER_RASTER_SOURCE, WEATHER_VECTOR_SOURCE]) {
-    if (map.getSource(sourceId) !== undefined) {
-      map.removeSource(sourceId);
-    }
-  }
+  const generation = ++generationRef.current;
   // Weather tiles sit below the admin boundaries of the positron style, so country
   // and region borders stay visible; symbol layers are the fallback anchor
   const styleLayers = map.getStyle().layers;
@@ -165,34 +169,52 @@ function replaceWeatherLayers(
     styleLayers.find((layer) => layer.id.includes('boundary')) ??
     styleLayers.find((layer) => layer.type === 'symbol')
   )?.id;
-  map.addSource(WEATHER_RASTER_SOURCE, {
+  map.addSource(`${WEATHER_RASTER_SOURCE}-${String(generation)}`, {
     type: 'raster',
     url: `om://${sources.raster}`,
     maxzoom: 12,
   });
   map.addLayer(
     {
-      id: WEATHER_RASTER_LAYER,
+      id: `${WEATHER_RASTER_LAYER}-${String(generation)}`,
       type: 'raster',
-      source: WEATHER_RASTER_SOURCE,
+      source: `${WEATHER_RASTER_SOURCE}-${String(generation)}`,
       paint: { 'raster-opacity': 0.6 },
     },
     labelLayerId,
   );
   if (sources.vector !== null) {
-    map.addSource(WEATHER_VECTOR_SOURCE, {
+    map.addSource(`${WEATHER_VECTOR_SOURCE}-${String(generation)}`, {
       type: 'vector',
       url: `om://${sources.vector}`,
     });
     map.addLayer(
       {
-        id: WEATHER_VECTOR_LAYER,
+        id: `${WEATHER_VECTOR_LAYER}-${String(generation)}`,
         type: 'line',
-        source: WEATHER_VECTOR_SOURCE,
+        source: `${WEATHER_VECTOR_SOURCE}-${String(generation)}`,
         'source-layer': sources.vectorSourceLayer,
         paint: { 'line-color': '#2c3e50', 'line-width': 1 },
       },
       labelLayerId,
     );
   }
+  const removeStale = () => {
+    map.off('idle', removeStale);
+    if (generationRef.current !== generation) {
+      return;
+    }
+    const suffix = `-${String(generation)}`;
+    for (const layer of map.getStyle().layers) {
+      if (layer.id.startsWith('weather-') && !layer.id.endsWith(suffix)) {
+        map.removeLayer(layer.id);
+      }
+    }
+    for (const sourceId of Object.keys(map.getStyle().sources)) {
+      if (sourceId.startsWith('weather-') && !sourceId.endsWith(suffix)) {
+        map.removeSource(sourceId);
+      }
+    }
+  };
+  map.on('idle', removeStale);
 }
