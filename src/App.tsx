@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Dashboard } from './components/Dashboard';
 import { HelpModal } from './components/HelpModal';
 import { HistoryMenu } from './components/HistoryMenu';
@@ -27,7 +27,6 @@ const WARSAW: GeoCoordinates = { latitude: 52.2297, longitude: 21.0122 };
 const PLAYBACK_INTERVAL_MS = 750;
 
 export function App() {
-  const geolocation = useGeolocation();
   const { locationHistory, addVisitedLocation } = useLocationHistory();
   // Selecting a history entry recenters the map, unlike a plain map click
   const [mapFocus, setMapFocus] = useState<GeoCoordinates | null>(null);
@@ -36,6 +35,24 @@ export function App() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] =
     useState<GeoCoordinates | null>(null);
+  const selectedLocationRef = useRef<GeoCoordinates | null>(null);
+  useEffect(() => {
+    selectedLocationRef.current = selectedLocation;
+  });
+
+  // FR-12: the detected position becomes the selected point, unless the user
+  // already clicked one before consent came back
+  const handleLocated = useCallback(
+    (coordinates: GeoCoordinates) => {
+      if (selectedLocationRef.current === null) {
+        setSelectedLocation(coordinates);
+        addVisitedLocation(coordinates);
+      }
+    },
+    [addVisitedLocation],
+  );
+  const geolocation = useGeolocation(handleLocated);
+
   const [layerModel, setLayerModel] = useState<ModelId>('gfs');
   const [layerKind, setLayerKind] = useState<MapLayerKind>('temperature');
   const forecastQuery = useForecast(selectedLocation);
