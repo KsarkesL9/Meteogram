@@ -12,6 +12,13 @@ const MODEL_TILE_PATHS: Record<ModelId, string> = {
   hrrr: 'ncep_hrrr_conus',
 };
 
+// Keys of the color scales that @openmeteo/weather-map-layer ships per layer kind
+export const LAYER_COLOR_SCALE_KEYS: Record<MapLayerKind, string> = {
+  temperature: 'temperature',
+  pressure: 'pressure',
+  wind: 'wind',
+};
+
 export type WeatherLayerSources =
   | { raster: string; vector: null }
   | {

@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
-import { omProtocol } from '@openmeteo/weather-map-layer';
-import 'maplibre-gl/dist/maplibre-gl.css';
 import {
+  COLOR_SCALES,
+  getValueFromLatLong,
+  omProtocol,
+} from '@openmeteo/weather-map-layer';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { MapScaleLegend } from './MapScaleLegend';
+import {
+  LAYER_COLOR_SCALE_KEYS,
   buildWeatherLayerSources,
   findClosestValidTime,
   weatherLayerTilePath,
@@ -23,6 +29,13 @@ const WEATHER_RASTER_LAYER = 'weather-raster-layer';
 const WEATHER_VECTOR_SOURCE = 'weather-vector';
 const WEATHER_VECTOR_LAYER = 'weather-vector-layer';
 const LAYER_DEBOUNCE_MS = 250;
+const HOVER_READOUT_THROTTLE_MS = 150;
+
+interface HoverReadout {
+  x: number;
+  y: number;
+  value: number;
+}
 
 interface MapPanelProps {
   center: GeoCoordinates;
@@ -51,7 +64,14 @@ export function MapPanel({
   const initialCenterRef = useRef(center);
   const onLocationSelectedRef = useRef(onLocationSelected);
   const generationRef = useRef(0);
+  const rasterUrlRef = useRef<string | null>(null);
+  const hoverTimerRef = useRef<number | null>(null);
+  const pendingHoverRef = useRef<{
+    point: { x: number; y: number };
+    lngLat: { lat: number; lng: number };
+  } | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [hoverReadout, setHoverReadout] = useState<HoverReadout | null>(null);
 
   useEffect(() => {
     onLocationSelectedRef.current = onLocationSelected;
@@ -84,8 +104,50 @@ export function MapPanel({
     map.on('load', () => {
       setIsMapReady(true);
     });
+    map.on('mousemove', (event) => {
+      pendingHoverRef.current = {
+        point: { x: event.point.x, y: event.point.y },
+        lngLat: { lat: event.lngLat.lat, lng: event.lngLat.lng },
+      };
+      if (hoverTimerRef.current !== null) {
+        return;
+      }
+      hoverTimerRef.current = window.setTimeout(() => {
+        hoverTimerRef.current = null;
+        const pending = pendingHoverRef.current;
+        const rasterUrl = rasterUrlRef.current;
+        if (pending === null || rasterUrl === null) {
+          return;
+        }
+        void (async () => {
+          try {
+            const readout = await getValueFromLatLong(
+              pending.lngLat.lat,
+              pending.lngLat.lng,
+              `om://${rasterUrl}`,
+            );
+            setHoverReadout({
+              x: pending.point.x,
+              y: pending.point.y,
+              value: readout.value,
+            });
+          } catch {
+            // Outside the data grid or reader not warmed up yet - no readout then
+            setHoverReadout(null);
+          }
+        })();
+      }, HOVER_READOUT_THROTTLE_MS);
+    });
+    map.getCanvas().addEventListener('mouseleave', () => {
+      pendingHoverRef.current = null;
+      setHoverReadout(null);
+    });
     mapRef.current = map;
     return () => {
+      if (hoverTimerRef.current !== null) {
+        clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = null;
+      }
       mapRef.current = null;
       map.remove();
     };
@@ -122,6 +184,7 @@ export function MapPanel({
         }
       }
       const sources = buildWeatherLayerSources(layerModel, layerKind, frame);
+      rasterUrlRef.current = sources.raster;
       const apply = () => {
         swapWeatherLayers(map, sources, generationRef);
       };
@@ -143,6 +206,16 @@ export function MapPanel({
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
+      <MapScaleLegend kind={layerKind} />
+      {hoverReadout !== null && (
+        <div
+          className="pointer-events-none absolute z-10 rounded border border-line-strong bg-panel px-1.5 py-0.5 text-xs shadow"
+          style={{ left: hoverReadout.x + 12, top: hoverReadout.y + 12 }}
+        >
+          {hoverReadout.value.toFixed(1)}{' '}
+          {COLOR_SCALES[LAYER_COLOR_SCALE_KEYS[layerKind]].unit}
+        </div>
+      )}
       {!isMapReady && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-page">
           <span className="rounded border border-line bg-panel px-4 py-2 text-sm text-ink-secondary shadow">
