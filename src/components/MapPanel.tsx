@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import { omProtocol } from '@openmeteo/weather-map-layer';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -49,6 +49,7 @@ export function MapPanel({
   const markerRef = useRef<maplibregl.Marker | null>(null);
   const initialCenterRef = useRef(center);
   const onLocationSelectedRef = useRef(onLocationSelected);
+  const [isMapReady, setIsMapReady] = useState(false);
 
   useEffect(() => {
     onLocationSelectedRef.current = onLocationSelected;
@@ -77,6 +78,9 @@ export function MapPanel({
         latitude: event.lngLat.lat,
         longitude: event.lngLat.lng,
       });
+    });
+    map.on('load', () => {
+      setIsMapReady(true);
     });
     mapRef.current = map;
     return () => {
@@ -126,7 +130,18 @@ export function MapPanel({
     };
   }, [layerModel, layerKind, schedule, activeTime]);
 
-  return <div ref={containerRef} className="h-full w-full" />;
+  return (
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+      {!isMapReady && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-page">
+          <span className="rounded border border-line bg-panel px-4 py-2 text-sm text-ink-secondary shadow">
+            Ładowanie mapy…
+          </span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function replaceWeatherLayers(
