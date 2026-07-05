@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Dashboard } from './components/Dashboard';
+import { HistoryMenu } from './components/HistoryMenu';
 import { LayerControl } from './components/LayerControl';
 import { MapPanel } from './components/MapPanel';
 import { NavDropdown } from './components/NavDropdown';
@@ -26,7 +27,9 @@ const PLAYBACK_INTERVAL_MS = 750;
 
 export function App() {
   const geolocation = useGeolocation();
-  const { addVisitedLocation } = useLocationHistory();
+  const { locationHistory, addVisitedLocation } = useLocationHistory();
+  // Selecting a history entry recenters the map, unlike a plain map click
+  const [mapFocus, setMapFocus] = useState<GeoCoordinates | null>(null);
   const { unitPreferences, updateUnitPreferences } = useUnitPreferences();
   const [timeDisplay, setTimeDisplay] = useState<TimeDisplay>('local');
   const [selectedLocation, setSelectedLocation] =
@@ -92,6 +95,18 @@ export function App() {
       <header className="flex h-[50px] shrink-0 items-center bg-navbar px-4">
         <span className="text-lg font-bold text-white">Meteogram</span>
         <nav className="ml-auto flex items-center gap-1">
+          <NavDropdown label="Historia">
+            {(close) => (
+              <HistoryMenu
+                locationHistory={locationHistory}
+                onSelect={(coordinates) => {
+                  selectLocation(coordinates);
+                  setMapFocus(coordinates);
+                  close();
+                }}
+              />
+            )}
+          </NavDropdown>
           <NavDropdown label="Jednostki">
             {() => (
               <UnitsMenu
@@ -118,7 +133,7 @@ export function App() {
         <section className="flex w-3/5 flex-col">
           <div className="relative min-h-0 grow">
             <MapPanel
-              center={geolocation ?? WARSAW}
+              center={mapFocus ?? geolocation ?? WARSAW}
               selectedLocation={selectedLocation}
               layerModel={layerModel}
               layerKind={layerKind}
