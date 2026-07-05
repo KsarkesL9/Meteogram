@@ -34,6 +34,7 @@ export function Dashboard({
   const [activeGroupId, setActiveGroupId] =
     useState<ParameterGroupId>('temperature');
   const [excludedModels, setExcludedModels] = useState<ModelId[]>([]);
+  const [showAverage, setShowAverage] = useState(true);
 
   // FR-07: selecting a new location resets the archived-run overlay to "latest";
   // the snapshot comparison makes the reset derived state, not an effect
@@ -61,6 +62,19 @@ export function Dashboard({
     PARAMETER_GROUPS.find((group) => group.id === activeGroupId) ??
     PARAMETER_GROUPS[0];
 
+  // FR-09: a model answering for the location but with no data for any parameter
+  // of the active tab (e.g. ECMWF has no CIN) is greyed out with an explanation
+  const modelsWithoutParameter =
+    forecast === null
+      ? []
+      : (Object.keys(forecast.models) as ModelId[]).filter((model) =>
+          activeGroup.parameters.every((parameter) =>
+            forecast.models[model]?.parameters[parameter].every(
+              (value) => value === null,
+            ),
+          ),
+        );
+
   const toggleModel = (model: ModelId) => {
     // FR-06: exclusion only recomputes in the browser, no network traffic
     setExcludedModels((previous) =>
@@ -84,8 +98,13 @@ export function Dashboard({
         <ModelLegend
           models={coveredModels}
           unavailableModels={unavailableModels}
+          modelsWithoutParameter={modelsWithoutParameter}
           excludedModels={excludedModels}
+          showAverage={showAverage}
           onToggleModel={toggleModel}
+          onToggleAverage={() => {
+            setShowAverage((visible) => !visible);
+          }}
         />
         <div className="flex items-center gap-2">
           {isLoading && (
@@ -145,6 +164,7 @@ export function Dashboard({
               timeDisplay,
             )}
             timeSuffix={timeDisplay === 'utc' ? ' UTC' : ''}
+            showAverage={showAverage}
           />
           <div className="min-h-0 grow bg-panel">
             <ForecastChart
@@ -165,6 +185,7 @@ export function Dashboard({
                       forecast: archivedRun.forecast,
                     }
               }
+              showAverage={showAverage}
             />
           </div>
         </>

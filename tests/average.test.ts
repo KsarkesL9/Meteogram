@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { computeMultiModelAverage } from '../src/lib/average';
+import {
+  computeMultiModelAverage,
+  countSeriesWithData,
+} from '../src/lib/average';
 
 describe('computeMultiModelAverage', () => {
   it('averages values across models at each time step', () => {
@@ -31,5 +34,32 @@ describe('computeMultiModelAverage', () => {
 
   it('returns an empty series for an empty model list', () => {
     expect(computeMultiModelAverage([])).toEqual([]);
+  });
+
+  it('follows the remaining models when one series is entirely null', () => {
+    // ECMWF delivers no CIN at all - the average must equal the data-bearing models
+    expect(
+      computeMultiModelAverage([
+        [null, null, null],
+        [100, 200, 300],
+        [200, 300, 400],
+      ]),
+    ).toEqual([150, 250, 350]);
+  });
+});
+
+describe('countSeriesWithData', () => {
+  it('ignores series that are entirely null', () => {
+    expect(
+      countSeriesWithData([
+        [null, null],
+        [1, 2],
+        [null, 3],
+      ]),
+    ).toBe(2);
+  });
+
+  it('returns zero for no series at all', () => {
+    expect(countSeriesWithData([])).toBe(0);
   });
 });

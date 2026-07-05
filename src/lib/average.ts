@@ -23,3 +23,12 @@ export function computeMultiModelAverage(
   }
   return average;
 }
+
+// FR-05: an average of a single model is that model's line drawn twice, so the
+// UI draws the average only when at least two series actually carry data
+export function countSeriesWithData(
+  modelSeries: readonly ForecastSeries[],
+): number {
+  return modelSeries.filter((series) => series.some((value) => value !== null))
+    .length;
+}

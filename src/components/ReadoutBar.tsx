@@ -1,4 +1,4 @@
-import { computeMultiModelAverage } from '../lib/average';
+import { computeMultiModelAverage, countSeriesWithData } from '../lib/average';
 import { toLocationIso } from '../lib/localTime';
 import { PARAMETER_LABELS } from '../lib/parameterGroups';
 import type { ParameterGroup } from '../lib/parameterGroups';
@@ -20,6 +20,7 @@ interface ReadoutBarProps {
   timeIndex: number;
   displayOffsetSeconds: number;
   timeSuffix: string;
+  showAverage: boolean;
 }
 
 export function ReadoutBar({
@@ -30,6 +31,7 @@ export function ReadoutBar({
   timeIndex,
   displayOffsetSeconds,
   timeSuffix,
+  showAverage,
 }: ReadoutBarProps) {
   const parameter = group.parameters[0];
   const unit = parameterUnitLabel(parameter, unitPreferences);
@@ -37,11 +39,12 @@ export function ReadoutBar({
   const includedModels = presentModels.filter(
     (model) => !excludedModels.includes(model),
   );
-  const averageValue = computeMultiModelAverage(
-    includedModels.map(
-      (model) => forecast.models[model]?.parameters[parameter] ?? [],
-    ),
-  )[timeIndex];
+  const includedSeries = includedModels.map(
+    (model) => forecast.models[model]?.parameters[parameter] ?? [],
+  );
+  // FR-05: same gating as the chart - no average from a single data-bearing model
+  const hasAverage = showAverage && countSeriesWithData(includedSeries) >= 2;
+  const averageValue = computeMultiModelAverage(includedSeries)[timeIndex];
 
   const formatValue = (value: number | null | undefined) =>
     value === null || value === undefined
@@ -67,15 +70,17 @@ export function ReadoutBar({
           )}
         </span>
       ))}
-      <span className="flex items-center gap-1">
-        <span
-          className="font-bold"
-          style={{ color: MULTI_MODEL_AVERAGE_COLOR }}
-        >
-          {MULTI_MODEL_AVERAGE_LABEL}:
+      {hasAverage && (
+        <span className="flex items-center gap-1">
+          <span
+            className="font-bold"
+            style={{ color: MULTI_MODEL_AVERAGE_COLOR }}
+          >
+            {MULTI_MODEL_AVERAGE_LABEL}:
+          </span>
+          {formatValue(averageValue)}
         </span>
-        {formatValue(averageValue)}
-      </span>
+      )}
     </div>
   );
 }

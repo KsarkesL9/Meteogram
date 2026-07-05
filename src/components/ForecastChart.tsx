@@ -1,6 +1,6 @@
 import Plot from 'react-plotly.js';
 import type { Annotations, Data, Layout } from 'plotly.js';
-import { computeMultiModelAverage } from '../lib/average';
+import { computeMultiModelAverage, countSeriesWithData } from '../lib/average';
 import { toLocationIso } from '../lib/localTime';
 import { computeMeanWindDirection } from '../lib/windDirection';
 import { PARAMETER_LABELS } from '../lib/parameterGroups';
@@ -60,6 +60,7 @@ interface ForecastChartProps {
   activeTimeIndex: number;
   displayOffsetSeconds: number;
   archivedRun: { model: ModelId; forecast: LocationForecast } | null;
+  showAverage: boolean;
 }
 
 export function ForecastChart({
@@ -70,6 +71,7 @@ export function ForecastChart({
   activeTimeIndex,
   displayOffsetSeconds,
   archivedRun,
+  showAverage,
 }: ForecastChartProps) {
   const localTimes = forecast.timestamps.map((timestamp) =>
     toLocationIso(timestamp, displayOffsetSeconds),
@@ -99,15 +101,18 @@ export function ForecastChart({
         line: { color: MODEL_COLORS[model], width: 1.5, dash },
       });
     });
-    // FR-05/FR-06: the average follows the legend state and recomputes client-side
-    traces.push({
-      x: localTimes,
-      y: computeMultiModelAverage(includedSeries),
-      type: 'scatter',
-      mode: 'lines',
-      name: `${MULTI_MODEL_AVERAGE_LABEL}: ${PARAMETER_LABELS[parameter]}`,
-      line: { color: MULTI_MODEL_AVERAGE_COLOR, width: 2.5, dash: 'dash' },
-    });
+    // FR-05/FR-06: the average follows the legend state and recomputes client-side;
+    // it is skipped when fewer than two models actually carry data for the parameter
+    if (showAverage && countSeriesWithData(includedSeries) >= 2) {
+      traces.push({
+        x: localTimes,
+        y: computeMultiModelAverage(includedSeries),
+        type: 'scatter',
+        mode: 'lines',
+        name: `${MULTI_MODEL_AVERAGE_LABEL}: ${PARAMETER_LABELS[parameter]}`,
+        line: { color: MULTI_MODEL_AVERAGE_COLOR, width: 2.5, dash: 'dash' },
+      });
+    }
   });
 
   // FR-07: a single archived run overlays the charts as a thinner, faded line
