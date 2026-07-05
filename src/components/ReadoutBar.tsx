@@ -18,6 +18,8 @@ interface ReadoutBarProps {
   excludedModels: ModelId[];
   unitPreferences: UnitPreferences;
   timeIndex: number;
+  displayOffsetSeconds: number;
+  timeSuffix: string;
 }
 
 export function ReadoutBar({
@@ -26,6 +28,8 @@ export function ReadoutBar({
   excludedModels,
   unitPreferences,
   timeIndex,
+  displayOffsetSeconds,
+  timeSuffix,
 }: ReadoutBarProps) {
   const parameter = group.parameters[0];
   const unit = parameterUnitLabel(parameter, unitPreferences);
@@ -48,12 +52,10 @@ export function ReadoutBar({
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line bg-panel px-3 py-1.5 text-sm">
       <span className="text-ink-muted">
         {PARAMETER_LABELS[parameter]} ·{' '}
-        {toLocationIso(
-          forecast.timestamps[timeIndex],
-          forecast.utcOffsetSeconds,
-        )
+        {toLocationIso(forecast.timestamps[timeIndex], displayOffsetSeconds)
           .slice(0, 16)
           .replace('T', ' ')}
+        {timeSuffix}
       </span>
       {includedModels.map((model) => (
         <span key={model} className="flex items-center gap-1">

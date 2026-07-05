@@ -4,29 +4,33 @@ import { ModelLegend } from './ModelLegend';
 import { ParameterTabs } from './ParameterTabs';
 import { ReadoutBar } from './ReadoutBar';
 import type { ForecastQuery } from '../hooks/useForecast';
+import { displayOffsetSeconds } from '../lib/localTime';
+import type { TimeDisplay } from '../lib/localTime';
 import { listCoveredModels } from '../lib/modelCoverage';
 import { PARAMETER_GROUPS } from '../lib/parameterGroups';
 import type { ParameterGroupId } from '../lib/parameterGroups';
-import { DEFAULT_UNIT_PREFERENCES } from '../lib/units';
+import type { UnitPreferences } from '../lib/units';
 import type { GeoCoordinates, ModelId } from '../types/forecast';
 
 interface DashboardProps {
   location: GeoCoordinates | null;
   query: ForecastQuery;
   activeTimeIndex: number;
+  unitPreferences: UnitPreferences;
+  timeDisplay: TimeDisplay;
 }
 
 export function Dashboard({
   location,
   query,
   activeTimeIndex,
+  unitPreferences,
+  timeDisplay,
 }: DashboardProps) {
   const { forecast, unavailableModels, isLoading, error, retry } = query;
   const [activeGroupId, setActiveGroupId] =
     useState<ParameterGroupId>('temperature');
   const [excludedModels, setExcludedModels] = useState<ModelId[]>([]);
-  // FR-18: the unit switcher UI arrives with the navbar menu; defaults apply until then
-  const unitPreferences = DEFAULT_UNIT_PREFERENCES;
 
   // FR-08: models outside their coverage are absent from the legend, not greyed out
   const coveredModels = useMemo(
@@ -102,6 +106,11 @@ export function Dashboard({
             excludedModels={excludedModels}
             unitPreferences={unitPreferences}
             timeIndex={activeTimeIndex}
+            displayOffsetSeconds={displayOffsetSeconds(
+              forecast.utcOffsetSeconds,
+              timeDisplay,
+            )}
+            timeSuffix={timeDisplay === 'utc' ? ' UTC' : ''}
           />
           <div className="min-h-0 grow bg-panel">
             <ForecastChart
@@ -110,6 +119,10 @@ export function Dashboard({
               excludedModels={excludedModels}
               unitPreferences={unitPreferences}
               activeTimeIndex={activeTimeIndex}
+              displayOffsetSeconds={displayOffsetSeconds(
+                forecast.utcOffsetSeconds,
+                timeDisplay,
+              )}
             />
           </div>
         </>

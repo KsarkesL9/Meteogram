@@ -58,6 +58,7 @@ interface ForecastChartProps {
   excludedModels: ModelId[];
   unitPreferences: UnitPreferences;
   activeTimeIndex: number;
+  displayOffsetSeconds: number;
 }
 
 export function ForecastChart({
@@ -66,9 +67,10 @@ export function ForecastChart({
   excludedModels,
   unitPreferences,
   activeTimeIndex,
+  displayOffsetSeconds,
 }: ForecastChartProps) {
   const localTimes = forecast.timestamps.map((timestamp) =>
-    toLocationIso(timestamp, forecast.utcOffsetSeconds),
+    toLocationIso(timestamp, displayOffsetSeconds),
   );
   const presentModels = Object.keys(forecast.models) as ModelId[];
   const includedModels = presentModels.filter(

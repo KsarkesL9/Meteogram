@@ -12,6 +12,16 @@ export function toLocationIso(
     .slice(0, 19);
 }
 
+// FR-20: default display is the location's local clock, with a UTC toggle
+export type TimeDisplay = 'local' | 'utc';
+
+export function displayOffsetSeconds(
+  utcOffsetSeconds: number,
+  display: TimeDisplay,
+): number {
+  return display === 'local' ? utcOffsetSeconds : 0;
+}
+
 export function findClosestTimeIndex(
   timestamps: readonly UnixSeconds[],
   target: UnixSeconds,

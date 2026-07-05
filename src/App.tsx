@@ -2,11 +2,15 @@ import { useEffect, useState } from 'react';
 import { Dashboard } from './components/Dashboard';
 import { LayerControl } from './components/LayerControl';
 import { MapPanel } from './components/MapPanel';
+import { NavDropdown } from './components/NavDropdown';
 import { TimeBar } from './components/TimeBar';
+import { UnitsMenu } from './components/UnitsMenu';
 import { useForecast } from './hooks/useForecast';
 import { useGeolocation } from './hooks/useGeolocation';
 import { useLocationHistory } from './hooks/useLocationHistory';
-import { toLocationIso } from './lib/localTime';
+import { useUnitPreferences } from './hooks/useUnitPreferences';
+import { displayOffsetSeconds, toLocationIso } from './lib/localTime';
+import type { TimeDisplay } from './lib/localTime';
 import type { MapLayerKind } from './lib/mapLayers';
 import type {
   GeoCoordinates,
@@ -23,6 +27,8 @@ const PLAYBACK_INTERVAL_MS = 750;
 export function App() {
   const geolocation = useGeolocation();
   const { addVisitedLocation } = useLocationHistory();
+  const { unitPreferences, updateUnitPreferences } = useUnitPreferences();
+  const [timeDisplay, setTimeDisplay] = useState<TimeDisplay>('local');
   const [selectedLocation, setSelectedLocation] =
     useState<GeoCoordinates | null>(null);
   const [layerModel, setLayerModel] = useState<ModelId>('gfs');
@@ -74,14 +80,39 @@ export function App() {
   const timeLabel =
     forecast === null || activeTime === null
       ? '—'
-      : toLocationIso(activeTime, forecast.utcOffsetSeconds)
+      : toLocationIso(
+          activeTime,
+          displayOffsetSeconds(forecast.utcOffsetSeconds, timeDisplay),
+        )
           .slice(0, 16)
-          .replace('T', ' ');
+          .replace('T', ' ') + (timeDisplay === 'utc' ? ' UTC' : '');
 
   return (
     <div className="flex h-screen flex-col bg-page font-sans text-ink">
       <header className="flex h-[50px] shrink-0 items-center bg-navbar px-4">
         <span className="text-lg font-bold text-white">Meteogram</span>
+        <nav className="ml-auto flex items-center gap-1">
+          <NavDropdown label="Jednostki">
+            {() => (
+              <UnitsMenu
+                unitPreferences={unitPreferences}
+                onUpdate={updateUnitPreferences}
+              />
+            )}
+          </NavDropdown>
+          <button
+            type="button"
+            className="rounded px-3 py-1.5 text-sm text-white hover:bg-white/10"
+            onClick={() => {
+              // FR-20: toggle between the location's local clock and UTC
+              setTimeDisplay((display) =>
+                display === 'local' ? 'utc' : 'local',
+              );
+            }}
+          >
+            Czas: {timeDisplay === 'local' ? 'lokalny' : 'UTC'}
+          </button>
+        </nav>
       </header>
       <main className="flex min-h-0 grow">
         <section className="flex w-3/5 flex-col">
@@ -126,6 +157,8 @@ export function App() {
             location={selectedLocation}
             query={forecastQuery}
             activeTimeIndex={activeTimeIndex}
+            unitPreferences={unitPreferences}
+            timeDisplay={timeDisplay}
           />
         </aside>
       </main>
