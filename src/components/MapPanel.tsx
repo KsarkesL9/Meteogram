@@ -158,10 +158,13 @@ function replaceWeatherLayers(
       map.removeSource(sourceId);
     }
   }
-  // Weather tiles sit below the basemap labels so city names stay readable
-  const labelLayerId = map
-    .getStyle()
-    .layers.find((layer) => layer.type === 'symbol')?.id;
+  // Weather tiles sit below the admin boundaries of the positron style, so country
+  // and region borders stay visible; symbol layers are the fallback anchor
+  const styleLayers = map.getStyle().layers;
+  const labelLayerId = (
+    styleLayers.find((layer) => layer.id.includes('boundary')) ??
+    styleLayers.find((layer) => layer.type === 'symbol')
+  )?.id;
   map.addSource(WEATHER_RASTER_SOURCE, {
     type: 'raster',
     url: `om://${sources.raster}`,
@@ -172,7 +175,7 @@ function replaceWeatherLayers(
       id: WEATHER_RASTER_LAYER,
       type: 'raster',
       source: WEATHER_RASTER_SOURCE,
-      paint: { 'raster-opacity': 0.75 },
+      paint: { 'raster-opacity': 0.6 },
     },
     labelLayerId,
   );
