@@ -1,7 +1,8 @@
 import Plot from 'react-plotly.js';
-import type { Data, Layout } from 'plotly.js';
+import type { Annotations, Data, Layout } from 'plotly.js';
 import { computeMultiModelAverage } from '../lib/average';
 import { toLocationIso } from '../lib/localTime';
+import { computeMeanWindDirection } from '../lib/windDirection';
 import { PARAMETER_LABELS } from '../lib/parameterGroups';
 import type { ParameterGroup } from '../lib/parameterGroups';
 import { convertForecastSeries, parameterUnitLabel } from '../lib/units';
@@ -16,6 +17,40 @@ import type { LocationForecast, ModelId } from '../types/forecast';
 
 // Consecutive parameters of a combined tab (e.g. dew point) get distinct dashes
 const PARAMETER_DASHES = ['solid', 'dot', 'dashdot'] as const;
+
+// One arrow per six hourly steps keeps the row legible over the 16-day horizon
+const WIND_ARROW_STEP = 6;
+
+function windArrowAnnotations(
+  forecast: LocationForecast,
+  includedModels: ModelId[],
+  localTimes: string[],
+): Partial<Annotations>[] {
+  const annotations: Partial<Annotations>[] = [];
+  for (let index = 0; index < localTimes.length; index += WIND_ARROW_STEP) {
+    const direction = computeMeanWindDirection(
+      includedModels.map(
+        (model) =>
+          forecast.models[model]?.parameters.windDirection[index] ?? null,
+      ),
+    );
+    if (direction === null) {
+      continue;
+    }
+    annotations.push({
+      x: localTimes[index],
+      y: 1.02,
+      yref: 'paper',
+      yanchor: 'bottom',
+      text: '↑',
+      // Meteorological direction points where wind comes from; the arrow shows where it blows
+      textangle: String((direction + 180) % 360),
+      showarrow: false,
+      font: { size: 13, color: '#666f7a' },
+    });
+  }
+  return annotations;
+}
 
 interface ForecastChartProps {
   forecast: LocationForecast;
@@ -71,9 +106,14 @@ export function ForecastChart({
     });
   });
 
+  // FR-15: the wind tab carries a direction-arrow row above the time axis
+  const isWindGroup = group.id === 'wind';
   const layout: Partial<Layout> = {
     autosize: true,
-    margin: { l: 55, r: 15, t: 10, b: 40 },
+    margin: { l: 55, r: 15, t: isWindGroup ? 30 : 10, b: 40 },
+    annotations: isWindGroup
+      ? windArrowAnnotations(forecast, includedModels, localTimes)
+      : [],
     showlegend: false,
     plot_bgcolor: '#ffffff',
     paper_bgcolor: '#ffffff',
