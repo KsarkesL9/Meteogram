@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Dashboard } from './components/Dashboard';
+import { HelpModal } from './components/HelpModal';
 import { HistoryMenu } from './components/HistoryMenu';
 import { LayerControl } from './components/LayerControl';
 import { MapPanel } from './components/MapPanel';
@@ -32,6 +33,7 @@ export function App() {
   const [mapFocus, setMapFocus] = useState<GeoCoordinates | null>(null);
   const { unitPreferences, updateUnitPreferences } = useUnitPreferences();
   const [timeDisplay, setTimeDisplay] = useState<TimeDisplay>('local');
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] =
     useState<GeoCoordinates | null>(null);
   const [layerModel, setLayerModel] = useState<ModelId>('gfs');
@@ -127,8 +129,24 @@ export function App() {
           >
             Czas: {timeDisplay === 'local' ? 'lokalny' : 'UTC'}
           </button>
+          <button
+            type="button"
+            className="rounded px-3 py-1.5 text-sm text-white hover:bg-white/10"
+            onClick={() => {
+              setIsHelpOpen(true);
+            }}
+          >
+            Pomoc
+          </button>
         </nav>
       </header>
+      {isHelpOpen && (
+        <HelpModal
+          onClose={() => {
+            setIsHelpOpen(false);
+          }}
+        />
+      )}
       <main className="flex min-h-0 grow">
         <section className="flex w-3/5 flex-col">
           <div className="relative min-h-0 grow">
@@ -177,6 +195,37 @@ export function App() {
           />
         </aside>
       </main>
+      {/* FR-24 */}
+      <footer className="flex h-6 shrink-0 items-center justify-center gap-1 border-t border-line bg-header-light text-xs text-ink-muted">
+        <span>Dane pogodowe:</span>
+        <a
+          className="text-link hover:underline"
+          href="https://open-meteo.com/"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open-Meteo
+        </a>
+        <span>(CC BY 4.0) · Mapa:</span>
+        <a
+          className="text-link hover:underline"
+          href="https://openfreemap.org/"
+          target="_blank"
+          rel="noreferrer"
+        >
+          OpenFreeMap
+        </a>
+        <span>©</span>
+        <a
+          className="text-link hover:underline"
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noreferrer"
+        >
+          OpenStreetMap
+        </a>
+        <span>contributors</span>
+      </footer>
     </div>
   );
 }
