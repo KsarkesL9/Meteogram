@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@openmeteo/file-reader": "^0.0.17",
     "@openmeteo/weather-map-layer": "^0.0.19",
     "maplibre-gl": "^5.24.0",
     "plotly.js": "^3.7.0",

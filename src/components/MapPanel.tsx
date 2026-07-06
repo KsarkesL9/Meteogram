@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
+import { LruBlockCache } from '@openmeteo/file-reader';
 import {
   COLOR_SCALES,
+  defaultOmProtocolSettings,
   getValueFromLatLong,
   omProtocol,
 } from '@openmeteo/weather-map-layer';
@@ -21,7 +23,21 @@ import type {
 import { useWeatherLayerSchedule } from '../hooks/useWeatherLayerSchedule';
 import type { GeoCoordinates, ModelId, UnixSeconds } from '../types/forecast';
 
-maplibregl.addProtocol('om', omProtocol);
+// Memory-over-network (architecture, section 7): the default 8 MB block cache
+// holds barely three viewport hours, so scrubbing the slider refetched every
+// revisited hour; 64 MB keeps roughly a day of browsed hours in memory
+const OM_BLOCK_SIZE_BYTES = 64 * 1024;
+const OM_BLOCK_CACHE_CAPACITY = 1024;
+const omProtocolSettings = {
+  ...defaultOmProtocolSettings,
+  fileReaderConfig: {
+    ...defaultOmProtocolSettings.fileReaderConfig,
+    cache: new LruBlockCache(OM_BLOCK_SIZE_BYTES, OM_BLOCK_CACHE_CAPACITY),
+  },
+};
+maplibregl.addProtocol('om', (params, abortController) =>
+  omProtocol(params, abortController, omProtocolSettings),
+);
 
 const BASEMAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 const WEATHER_RASTER_SOURCE = 'weather-raster';
@@ -29,7 +45,7 @@ const WEATHER_RASTER_LAYER = 'weather-raster-layer';
 const WEATHER_VECTOR_SOURCE = 'weather-vector';
 const WEATHER_VECTOR_LAYER = 'weather-vector-layer';
 const LAYER_DEBOUNCE_MS = 250;
-const HOVER_READOUT_THROTTLE_MS = 150;
+const HOVER_READOUT_DEBOUNCE_MS = 250;
 
 interface HoverReadout {
   x: number;
@@ -66,11 +82,13 @@ export function MapPanel({
   const generationRef = useRef(0);
   const rasterUrlRef = useRef<string | null>(null);
   const hoverTimerRef = useRef<number | null>(null);
+  const isReadingHoverRef = useRef(false);
   const pendingHoverRef = useRef<{
     point: { x: number; y: number };
     lngLat: { lat: number; lng: number };
   } | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [isLayerLoading, setIsLayerLoading] = useState(false);
   const [hoverReadout, setHoverReadout] = useState<HoverReadout | null>(null);
 
   useEffect(() => {
@@ -109,16 +127,24 @@ export function MapPanel({
         point: { x: event.point.x, y: event.point.y },
         lngLat: { lat: event.lngLat.lat, lng: event.lngLat.lng },
       };
+      // Trailing debounce: every point read downloads a fresh byte range of the
+      // om file, so a moving cursor must produce zero requests until it rests
       if (hoverTimerRef.current !== null) {
-        return;
+        clearTimeout(hoverTimerRef.current);
       }
+      setHoverReadout(null);
       hoverTimerRef.current = window.setTimeout(() => {
         hoverTimerRef.current = null;
         const pending = pendingHoverRef.current;
         const rasterUrl = rasterUrlRef.current;
-        if (pending === null || rasterUrl === null) {
+        if (
+          pending === null ||
+          rasterUrl === null ||
+          isReadingHoverRef.current
+        ) {
           return;
         }
+        isReadingHoverRef.current = true;
         void (async () => {
           try {
             const readout = await getValueFromLatLong(
@@ -134,9 +160,11 @@ export function MapPanel({
           } catch {
             // Outside the data grid or reader not warmed up yet - no readout then
             setHoverReadout(null);
+          } finally {
+            isReadingHoverRef.current = false;
           }
         })();
-      }, HOVER_READOUT_THROTTLE_MS);
+      }, HOVER_READOUT_DEBOUNCE_MS);
     });
     map.getCanvas().addEventListener('mouseleave', () => {
       pendingHoverRef.current = null;
@@ -186,7 +214,10 @@ export function MapPanel({
       const sources = buildWeatherLayerSources(layerModel, layerKind, frame);
       rasterUrlRef.current = sources.raster;
       const apply = () => {
-        swapWeatherLayers(map, sources, generationRef);
+        setIsLayerLoading(true);
+        swapWeatherLayers(map, sources, generationRef, () => {
+          setIsLayerLoading(false);
+        });
       };
       if (map.isStyleLoaded()) {
         apply();
@@ -207,6 +238,11 @@ export function MapPanel({
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
       <MapScaleLegend kind={layerKind} />
+      {isLayerLoading && (
+        <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2 rounded border border-line bg-panel px-3 py-1 text-xs text-ink-secondary shadow">
+          Ładowanie warstwy…
+        </div>
+      )}
       {hoverReadout !== null && (
         <div
           className="pointer-events-none absolute z-10 rounded border border-line-strong bg-panel px-1.5 py-0.5 text-xs shadow"
@@ -233,6 +269,7 @@ function swapWeatherLayers(
   map: maplibregl.Map,
   sources: WeatherLayerSources,
   generationRef: { current: number },
+  onSettled: () => void,
 ): void {
   const generation = ++generationRef.current;
   // Weather tiles sit below the admin boundaries of the positron style, so country
@@ -288,6 +325,7 @@ function swapWeatherLayers(
         map.removeSource(sourceId);
       }
     }
+    onSettled();
   };
   map.on('idle', removeStale);
 }
