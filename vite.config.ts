@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   // Vite pre-bundling breaks the import.meta.url-relative .wasm path of the om-file reader
   optimizeDeps: {
-    exclude: ['@openmeteo/weather-map-layer'],
+    exclude: ['@openmeteo/weather-map-layer', '@openmeteo/file-reader'],
   },
   test: {
     include: ['tests/**/*.test.ts'],

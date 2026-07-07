@@ -23,11 +23,11 @@ import type {
 import { useWeatherLayerSchedule } from '../hooks/useWeatherLayerSchedule';
 import type { GeoCoordinates, ModelId, UnixSeconds } from '../types/forecast';
 
-// Memory-over-network (architecture, section 7): the default 8 MB block cache
-// holds barely three viewport hours, so scrubbing the slider refetched every
-// revisited hour; 64 MB keeps roughly a day of browsed hours in memory
-const OM_BLOCK_SIZE_BYTES = 64 * 1024;
-const OM_BLOCK_CACHE_CAPACITY = 1024;
+// Memory-over-network (architecture, section 7): a larger block size (1 MB)
+// drastically reduces the number of sequential HTTP Range requests, while
+// a 256 MB cache capacity keeps several hours of scrubbed data in memory.
+const OM_BLOCK_SIZE_BYTES = 1024 * 1024;
+const OM_BLOCK_CACHE_CAPACITY = 256;
 const omProtocolSettings = {
   ...defaultOmProtocolSettings,
   fileReaderConfig: {
