@@ -8,9 +8,8 @@ import {
   omProtocol,
 } from '@openmeteo/weather-map-layer';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { MapScaleLegend } from './MapScaleLegend';
+import { MapScaleLegend, weatherLayerColorScale } from './MapScaleLegend';
 import {
-  LAYER_COLOR_SCALE_KEYS,
   buildWeatherLayerSources,
   findClosestValidTime,
   weatherLayerTilePath,
@@ -20,6 +19,7 @@ import type {
   WeatherLayerFrame,
   WeatherLayerSources,
 } from '../lib/mapLayers';
+import { TEMPERATURE_COLOR_SCALE } from '../lib/temperatureScale';
 import { useWeatherLayerSchedule } from '../hooks/useWeatherLayerSchedule';
 import type { GeoCoordinates, ModelId, UnixSeconds } from '../types/forecast';
 
@@ -30,6 +30,8 @@ const OM_BLOCK_SIZE_BYTES = 1024 * 1024;
 const OM_BLOCK_CACHE_CAPACITY = 256;
 const omProtocolSettings = {
   ...defaultOmProtocolSettings,
+  // UI spec 2.4: the app-defined stepped temperature scale replaces the default
+  colorScales: { ...COLOR_SCALES, temperature: TEMPERATURE_COLOR_SCALE },
   fileReaderConfig: {
     ...defaultOmProtocolSettings.fileReaderConfig,
     cache: new LruBlockCache(OM_BLOCK_SIZE_BYTES, OM_BLOCK_CACHE_CAPACITY),
@@ -249,7 +251,7 @@ export function MapPanel({
           style={{ left: hoverReadout.x + 12, top: hoverReadout.y + 12 }}
         >
           {hoverReadout.value.toFixed(1)}{' '}
-          {COLOR_SCALES[LAYER_COLOR_SCALE_KEYS[layerKind]].unit}
+          {weatherLayerColorScale(layerKind).unit}
         </div>
       )}
       {!isMapReady && (

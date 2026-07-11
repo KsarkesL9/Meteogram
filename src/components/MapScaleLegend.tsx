@@ -1,24 +1,73 @@
 import { COLOR_SCALES } from '@openmeteo/weather-map-layer';
 import { LAYER_COLOR_SCALE_KEYS } from '../lib/mapLayers';
 import type { MapLayerKind } from '../lib/mapLayers';
+import {
+  TEMPERATURE_COLOR_SCALE,
+  TEMPERATURE_SCALE_MAX,
+} from '../lib/temperatureScale';
+
+// FR-13: temperature uses the app's own stepped scale (UI spec 2.4); the other
+// layers keep the palette the library renders their tiles with
+export function weatherLayerColorScale(kind: MapLayerKind) {
+  return kind === 'temperature'
+    ? TEMPERATURE_COLOR_SCALE
+    : COLOR_SCALES[LAYER_COLOR_SCALE_KEYS[kind]];
+}
+
+function cssColor([red, green, blue, alpha]: [number, number, number, number]) {
+  return `rgba(${String(red)},${String(green)},${String(blue)},${String(alpha)})`;
+}
 
 interface MapScaleLegendProps {
   kind: MapLayerKind;
 }
 
-// FR-13: the color scale of the active weather layer, taken straight from the
-// palette the tiles are rendered with
 export function MapScaleLegend({ kind }: MapScaleLegendProps) {
+  if (kind === 'temperature') {
+    const { breakpoints, colors, unit } = TEMPERATURE_COLOR_SCALE;
+    const boundaries = [...breakpoints, TEMPERATURE_SCALE_MAX];
+    return (
+      <div className="absolute bottom-6 left-2.5 z-10 w-80 rounded border border-line-strong bg-panel px-2 pt-1 pb-0.5 text-[10px] shadow">
+        <div className="flex h-3 overflow-hidden rounded-sm">
+          {colors.map((color, index) => (
+            <div
+              key={breakpoints[index]}
+              className="grow"
+              style={{ backgroundColor: cssColor(color) }}
+            />
+          ))}
+        </div>
+        <div className="relative h-3.5 text-ink-secondary">
+          {boundaries.map((value, index) => {
+            // Equal-width cells: every other boundary is labeled so numbers fit
+            if (index % 2 !== 0 && index !== boundaries.length - 1) {
+              return null;
+            }
+            const isFirst = index === 0;
+            const isLast = index === boundaries.length - 1;
+            return (
+              <span
+                key={value}
+                className={`absolute ${isFirst ? '' : isLast ? '-translate-x-full' : '-translate-x-1/2'}`}
+                style={{
+                  left: `${String((index / breakpoints.length) * 100)}%`,
+                }}
+              >
+                {value}
+                {isLast ? ` ${unit}` : ''}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   const scale = COLOR_SCALES[LAYER_COLOR_SCALE_KEYS[kind]];
   const colors = Array.isArray(scale.colors)
     ? scale.colors
     : scale.colors.light;
-  const gradient = `linear-gradient(to right, ${colors
-    .map(
-      ([red, green, blue, alpha]) =>
-        `rgba(${String(red)},${String(green)},${String(blue)},${String(alpha)})`,
-    )
-    .join(', ')})`;
+  const gradient = `linear-gradient(to right, ${colors.map(cssColor).join(', ')})`;
   const [minimum, maximum] =
     scale.type === 'breakpoint'
       ? [scale.breakpoints[0], scale.breakpoints[scale.breakpoints.length - 1]]
